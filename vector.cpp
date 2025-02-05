@@ -31,3 +31,83 @@ int main ()
 
     return 0;
 }
+
+
+
+
+//read with no blocking 
+/*
+#include <fcntl.h>   // For fcntl()
+#include <cerrno>    // For errno
+#include <vector>
+#include <iostream>
+#include <unistd.h>   // For close()
+
+#define BUFFER_SIZE 1024
+#define TIMEOUT_SEC 5 // Timeout for retrying recv()
+
+void error(const std::string& str) {
+    std::cerr << str << std::endl;
+}
+
+void set_nonblocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags == -1) {
+        error("Failed to get socket flags");
+        return;
+    }
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
+        error("Failed to set socket to non-blocking mode");
+    }
+}
+
+std::vector<std::string> read_all(int fd_client)
+{
+    char buffer[BUFFER_SIZE] = {0};
+    std::vector<std::string> request;
+    ssize_t received;
+    std::string full_request;
+    int attempts = 0;
+
+    set_nonblocking(fd_client); // Set the socket to non-blocking mode
+
+    while (attempts < TIMEOUT_SEC * 10) // Retry for a maximum of TIMEOUT_SEC seconds
+    {
+        received = recv(fd_client, buffer, BUFFER_SIZE, MSG_DONTWAIT);
+
+        if (received > 0) {
+            full_request.append(buffer, received);
+            if (full_request.find("\r\n\r\n") != std::string::npos) // End of HTTP request
+                break;
+        }
+        else if (received == 0) {
+            std::cout << "Client disconnected" << std::endl;
+            break;
+        }
+        else {
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                usleep(100000); // Sleep for 100ms to avoid busy-waiting
+                attempts++;
+                continue;
+            } else {
+                error("Recv error");
+                break;
+            }
+        }
+    }
+
+    if (attempts >= TIMEOUT_SEC * 10) {
+        error("Receive timed out.");
+    }
+
+    // Split request into lines
+    size_t pos = 0;
+    while ((pos = full_request.find("\r\n")) != std::string::npos) {
+        std::string line = full_request.substr(0, pos);
+        request.push_back(line);
+        full_request.erase(0, pos + 2); // Remove "\r\n"
+    }
+    return request;
+}
+
+*/
