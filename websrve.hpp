@@ -11,6 +11,9 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <vector>
+#include <fstream>
+
+#include <sstream>
 
 
 #endif
