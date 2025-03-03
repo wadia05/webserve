@@ -15,13 +15,17 @@ void server::extractGET(client &client, char *buffer)
         else
             path = getRoot() + path;
         client.filePath = path;
-        std::cout << path << std::endl;
-        client.fd_file = open(path.c_str(), O_RDONLY);
-        if (client.fd_file == -1)
+        if (client.file == NULL)
         {
-            std::cerr << "Error opening file: " << strerror(errno) << std::endl;
+            client.file = new std::ifstream();
+        }
+        client.file->open(path.c_str(), std::ios::in | std::ios::binary);
+        if (!client.file->is_open())
+        {
+            std::cerr << "Failed to open file: " << path << std::endl;
             return;
         }
+        
         client.bodyFond = true;
     }
     else
@@ -33,25 +37,20 @@ void server::extractGET(client &client, char *buffer)
 }
 int server::GET_hander(client &client, char *buffer)
 {
-    
-    // std::cout << client.fd_client << std::endl;
-    // std::cout << client.fd_file<< std::endl;
-    // std::cout << "extractGET" << std::endl;  
     if(client.bodyFond == false)
     {
         extractGET(client, buffer);
-        int swich = client.fd_client;
-        client.fd_client = client.fd_file;
-        client.fd_file = swich;
+        
+        // Calculate total file size for Content-Length header
+        if(client.file && client.file->is_open())
+        {
+            client.file->seekg(0, std::ios::end);
+            client.fullfileSize = client.file->tellg();
+            client.file->seekg(0, std::ios::beg);
+            std::cout << "File size calculated: " << client.fullfileSize << " bytes" << std::endl;
+        }
         return 0;
     }
-
-   
-
-        // std::cout << "extractGETmed" << std::endl;
-    
-    // std::cout << "extractGETend" << std::endl;
-    // read and send file
     return 1;
 }
 

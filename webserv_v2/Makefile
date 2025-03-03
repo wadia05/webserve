@@ -1,5 +1,5 @@
 NAME = webserv
-SRCS = main.cpp Methodes.cpp
+SRCS = main.cpp Methodes.cpp responce.cpp
 OBJS = $(SRCS:.cpp=.o)
 GXX = c++
 FLAGS = -Wall -Wextra -Werror -std=c++98

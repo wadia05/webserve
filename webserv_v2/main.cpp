@@ -42,51 +42,55 @@ void cleanup_client(client &Client, std::vector<client> &clients) {
 
 int sender(client &Client, std::vector<client> &clients) {
     if (Client.method == GET) {
-        // Open the file using fstream
-        std::ifstream file(Client.filePath.c_str(), std::ios::in | std::ios::binary);
-        if (!file.is_open()) {
-            std::cerr << "Failed to open file: " << Client.filePath << std::endl;
-            // Send error response to client before disconnecting
-            const char* error_msg = "HTTP/1.1 404 Not Found\r\n\r\n";
-            send(Client.fd_file, error_msg, strlen(error_msg), 0);
+        // If file couldn't be opened, send error response
+        if (!Client.file || !Client.file->is_open()) {
+            std::string errorResponse = prepareErrorResponse(404);
+            send(Client.fd_client, errorResponse.c_str(), errorResponse.length(), 0);
+            Client.finish = true;
             cleanup_client(Client, clients);
-            return 1;
+            return 0;
         }
-
-        // First send HTTP header
-        std::string header = "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\n\r\n";
-        if (send(Client.fd_file, header.c_str(), header.length(), 0) == -1) {
-            std::cerr << "Failed to send header" << std::endl;
-            cleanup_client(Client, clients);
-            return 1;
+        
+        // Calculate total file size if not done yet
+        if (Client.fullfileSize == 0 && !Client.hedersend) {
+            Client.file->seekg(0, std::ios::end);
+            Client.fullfileSize = Client.file->tellg();
+            Client.file->seekg(0, std::ios::beg);
+            std::cout << "File size: " << Client.fullfileSize << " bytes" << std::endl;
         }
-
-        // Read and send file in chunks
-        char buffer[BUFFER_SIZE];
-        while (file.read(buffer, sizeof(buffer)) || file.gcount() > 0) {
-            std::streamsize bytesRead = file.gcount();
-            std::streamsize totalSent = 0;
-            
-            // Keep trying to send until all bytes are sent
-            while (totalSent < bytesRead) {
-                ssize_t sent = send(Client.fd_file, buffer + totalSent, 
-                                  bytesRead - totalSent, 0);
-                if (sent == -1) {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        // Socket buffer is full, wait a bit and retry
-                        usleep(1000);  // Sleep for 1ms
-                        continue;
-                    }
-                    std::cerr << "Send error: " << strerror(errno) << std::endl;
-                    cleanup_client(Client, clients);
-                    return 1;
-                }
-                totalSent += sent;
+        
+        // Send headers first if not sent yet
+        if (!Client.hedersend) {
+            std::string headers = prepareResponseHeaders(Client);
+            std::cout << headers << std::endl;
+            send(Client.fd_client, headers.c_str(), headers.length(), 0);
+            Client.hedersend = true;
+            std::cout << "Headers sent" << std::endl;
+        }
+        
+        // Send a chunk of the file body
+        memset(Client.buffer, 0, BUFFER_SIZE);
+        Client.file->read(Client.buffer, BUFFER_SIZE);
+        std::streamsize bytesRead = Client.file->gcount();
+        
+        if (bytesRead > 0) {
+            // Send the data chunk without headers
+            int bytesSent = send(Client.fd_client, Client.buffer, bytesRead, 0);
+            if (bytesSent < 0) {
+                std::cerr << "Error sending data: " << strerror(errno) << std::endl;
+                Client.finish = true;
+                cleanup_client(Client, clients);
+            } else {
+                std::cout << "Sent " << bytesSent << " bytes of data" << std::endl;
             }
+            return 0; // Continue with next iteration
+        } else {
+            // End of file reached
+            std::cout << "End of file reached" << std::endl;
+            Client.finish = true;
+            cleanup_client(Client, clients);
+            return 0;
         }
-
-        cleanup_client(Client, clients);
-        return 0;
     }
     return 1;
 }
@@ -119,16 +123,19 @@ int server::handler(client &client)
 
 void reader(client &client)
 {
-    int received;
-
-    received = recv(client.fd_client, client.buffer, BUFFER_SIZE, 0);
-    if (received <= 0)
+    int received = recv(client.fd_client, client.buffer, BUFFER_SIZE, 0);
+    if (received == 0)
     {
-        close(client.fd_client);
-        nbClients--;
-        return;
+        std::cout << "Client disconnected" << std::endl;
     }
-    client.fileSizeRead += received;
+    else            
+    {
+        std::cerr << "Error receiving data: " << strerror(errno) << std::endl;
+    }
+    // client.finish = true;
+    return;
+    
+    // client.fileSizeRead += received;
 }
 
 void server::run_server()
@@ -151,7 +158,9 @@ void server::run_server()
 
         for (size_t i = 0; i < clients.size(); )
         {
-            reader(clients[i]);
+            if (clients[i].hedersend == false)
+                reader(clients[i]);
+            std::cout << "---\n";
             clients[i].vIndex = i;
             if (std::string(clients[i].buffer).find("GET") != std::string::npos)
                 clients[i].method = GET;
@@ -160,15 +169,9 @@ void server::run_server()
             else if (std::string(clients[i].buffer).find("DELETE") != std::string::npos)
                 clients[i].method = DELETE;
 
-            if(handler(clients[i]) == 0)
-            {
-                if (clients.size() - 1 == i) 
-                    i = 0;
-                else 
-                    i++; 
-                continue;
-            }
             std::cout << clients[i].buffer << std::endl;
+            std::cout << "cilent  "<< i << std::endl;
+            handler(clients[i]);
             sender(clients[i] , clients);
 
             if (clients.size() - 1 == i) 
@@ -185,7 +188,7 @@ server::server()
     this->max_upload_size = 25000000; // approximately 25 MB
     this->serverName = "MoleServer";
     this->serverIp = "192.168.3.31";
-    this->root = "../webserv_v2/root/";
+    this->root = "../webserv_v2/root";
     this->index_page = "../webserv_v2/root/index.html";
     this->error_page = "../webserv_v2/root/moleServer/404.html";
     setupServer();
