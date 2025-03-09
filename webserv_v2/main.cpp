@@ -72,6 +72,7 @@ int sender(client &Client, std::vector<client> &clients) {
         memset(Client.buffer, 0, BUFFER_SIZE);
         Client.file->read(Client.buffer, BUFFER_SIZE);
         std::streamsize bytesRead = Client.file->gcount();
+        Client.fileSizeRead += bytesRead;
         
         if (bytesRead > 0) {
             // Send the data chunk without headers
@@ -84,13 +85,16 @@ int sender(client &Client, std::vector<client> &clients) {
                 std::cout << "Sent " << bytesSent << " bytes of data" << std::endl;
             }
             return 0; // Continue with next iteration
-        } else {
+        }
+        else if (Client.fileSizeRead == Client.fullfileSize) {
+            std::cout << "\033[1;31mFile sent successfully\033[0m" << std::endl;
             // End of file reached
             std::cout << "End of file reached" << std::endl;
             Client.finish = true;
             cleanup_client(Client, clients);
             return 0;
         }
+ 
     }
     return 1;
 }
@@ -141,26 +145,63 @@ void reader(client &client)
 void server::run_server()
 {
     std::vector<client> clients;
+    int epoll_fd;
+    struct epoll_event ev , events[MAX_EVENTS];
+    ev.events = EPOLLIN;
+    ev.data.fd = this->fd_server;
+
+    epoll_fd = epoll_create(MAX_EVENTS);
+    if (epoll_fd == -1)
+        throw std::runtime_error("Epoll creation failed");
+    
+    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, this->fd_server, &ev) == -1)
+        throw std::runtime_error("Epoll control failed");
+
+    
     while (true)
     {
-        clients.push_back(client());
-        socklen_t client_len = sizeof(clients.back().client_address);
-        int new_fd = accept(this->fd_server, (sockaddr*)&clients.back().client_address, &client_len);
 
-        if (new_fd < 0)
+        int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, 100);
+        std::cout << "---\n";
+        std::cout << "nfds: " << nfds << std::endl;
+        if (nfds == -1)
         {
-            std::cerr << "Error accepting client: " << strerror(errno) << std::endl;
-            clients.pop_back();
+            std::cerr << "Error in epoll_wait: " << strerror(errno) << std::endl;
             continue;
         }
-        clients.back().fd_client = new_fd;
-        nbClients++;
 
-        for (size_t i = 0; i < clients.size(); )
+        for (int i = 0; i < nfds; i++){
+            
+            if (events[i].data.fd == this->fd_server)
+            {
+                clients.push_back(client());
+                socklen_t client_len = sizeof(clients.back().client_address);
+                int new_fd = accept(this->fd_server, (sockaddr*)&clients.back().client_address, &client_len);
+                if (new_fd < 0)
+                {
+                    std::cerr << "Error accepting client: " << strerror(errno) << std::endl;
+                    clients.pop_back();
+                    continue;
+                }
+                ev.events = EPOLLIN | EPOLLET;
+                ev.data.fd = new_fd;
+                if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_fd, &ev) == -1)
+                {
+                    std::cerr << "Error adding client to epoll: " << strerror(errno) << std::endl;
+                    cleanup_client(clients.back(), clients);
+                    continue;
+                }
+                else
+                    std::cout << "New client connected" << std::endl;
+                
+                clients.back().fd_client = new_fd;
+                nbClients++;
+            }
+        }
+        for (size_t i = 0; i < clients.size(); ++i)
         {
             if (clients[i].hedersend == false)
                 reader(clients[i]);
-            std::cout << "---\n";
             clients[i].vIndex = i;
             if (std::string(clients[i].buffer).find("GET") != std::string::npos)
                 clients[i].method = GET;
@@ -173,12 +214,10 @@ void server::run_server()
             std::cout << "cilent  "<< i << std::endl;
             handler(clients[i]);
             sender(clients[i] , clients);
-
-            if (clients.size() - 1 == i) 
-                i = 0;
-            else 
-                i++; 
         }
+            
+        
+
     }
 }
 

@@ -7,6 +7,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <sys/epoll.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -21,6 +22,7 @@
 
 
 #define BUFFER_SIZE 1024
+#define MAX_EVENTS 20
 
 enum  Method {
     GET,
@@ -38,7 +40,7 @@ class client {
         size_t fileSizeRead;
         Method method;
         std::string filePath;
-        std::streamsize fullfileSize;
+        size_t  fullfileSize;
         bool hedersend;
         bool bodyFond;        
         char buffer[BUFFER_SIZE];
