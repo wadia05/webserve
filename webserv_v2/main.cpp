@@ -40,7 +40,7 @@ void cleanup_client(client &Client, std::vector<client> &clients) {
     clients.erase(clients.begin() + Client.vIndex);
 }
 
-int sender(client &Client, std::vector<client> &clients) {
+int sender(client &Client, std::vector<client> &clients, int epollfd, struct epoll_event &ev) {
     if (Client.method == GET) {
         // If file couldn't be opened, send error response
         if (!Client.file || !Client.file->is_open()) {
@@ -90,6 +90,7 @@ int sender(client &Client, std::vector<client> &clients) {
             std::cout << "\033[1;31mFile sent successfully\033[0m" << std::endl;
             // End of file reached
             std::cout << "End of file reached" << std::endl;
+            epoll_ctl(epollfd, EPOLL_CTL_DEL, Client.fd_client, &ev);
             Client.finish = true;
             cleanup_client(Client, clients);
             return 0;
@@ -125,100 +126,133 @@ int server::handler(client &client)
     return 1;
 }
 
-void reader(client &client)
+int reader(client &client)
 {
     int received = recv(client.fd_client, client.buffer, BUFFER_SIZE, 0);
     if (received == 0)
     {
         std::cout << "Client disconnected" << std::endl;
+        return 0;
     }
     else            
     {
         std::cerr << "Error receiving data: " << strerror(errno) << std::endl;
+        return -1;
     }
     // client.finish = true;
-    return;
+    return 1;
     
     // client.fileSizeRead += received;
 }
 
+void setnonblock(int fd)
+{
+    int flags;
+    if ((flags = fcntl(fd, F_GETFL, 0)) == -1)
+        throw std::runtime_error("fcntl failed");
+    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+        throw std::runtime_error("fcntl failed");
+}
+
 void server::run_server()
 {
+    int epollfd;
+    struct epoll_event ev;
     std::vector<client> clients;
-    int epoll_fd;
-    struct epoll_event ev , events[MAX_EVENTS];
+    std::vector<struct epoll_event> events(10); // Initialize with capacity
+    
+    epollfd = epoll_create(1);
+    if (epollfd == -1)
+        throw std::runtime_error(std::string("epoll_create failed: ") + strerror(errno));
+    
     ev.events = EPOLLIN;
     ev.data.fd = this->fd_server;
-
-    epoll_fd = epoll_create(MAX_EVENTS);
-    if (epoll_fd == -1)
-        throw std::runtime_error("Epoll creation failed");
+    if (epoll_ctl(epollfd, EPOLL_CTL_ADD, this->fd_server, &ev) == -1)
+        throw std::runtime_error(std::string("epoll_ctl failed: ") + strerror(errno));
     
-    if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, this->fd_server, &ev) == -1)
-        throw std::runtime_error("Epoll control failed");
-
+    setnonblock(this->fd_server);
     
     while (true)
     {
-
-        int nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, 100);
-        std::cout << "---\n";
-        std::cout << "nfds: " << nfds << std::endl;
-        if (nfds == -1)
-        {
-            std::cerr << "Error in epoll_wait: " << strerror(errno) << std::endl;
-            continue;
+        std::cout << "is waiting for events" << std::endl;
+        int rfds = epoll_wait(epollfd, events.data(), events.size(), 1000);
+        
+        if (rfds == -1) {
+            if (errno == EINTR) {
+                // Interrupted by a signal, just continue
+                continue;
+            }
+            throw std::runtime_error(std::string("epoll_wait failed: ") + strerror(errno));
         }
-
-        for (int i = 0; i < nfds; i++){
-            
+        
+        // Resize events vector if we're close to capacity
+        if (rfds > 0 && static_cast<size_t>(rfds) >= events.size() * 0.8) {
+            events.resize(events.size() * 2);
+        }
+        
+        for (int i = 0; i < rfds; i++)
+        {
             if (events[i].data.fd == this->fd_server)
             {
+                struct sockaddr_in client_addr;
+                socklen_t client_len = sizeof(client_addr);
+                
                 clients.push_back(client());
-                socklen_t client_len = sizeof(clients.back().client_address);
-                int new_fd = accept(this->fd_server, (sockaddr*)&clients.back().client_address, &client_len);
-                if (new_fd < 0)
-                {
-                    std::cerr << "Error accepting client: " << strerror(errno) << std::endl;
+                clients.back().fd_client = accept(this->fd_server, 
+                                                 (struct sockaddr*)&client_addr, 
+                                                 &client_len);
+                
+                if (clients.back().fd_client == -1) {
+                    std::cerr << "accept failed: " << strerror(errno) << std::endl;
                     clients.pop_back();
                     continue;
                 }
-                ev.events = EPOLLIN | EPOLLET;
-                ev.data.fd = new_fd;
-                if(epoll_ctl(epoll_fd, EPOLL_CTL_ADD, new_fd, &ev) == -1)
-                {
-                    std::cerr << "Error adding client to epoll: " << strerror(errno) << std::endl;
-                    cleanup_client(clients.back(), clients);
+                
+                ev.events = EPOLLIN;
+                ev.data.fd = clients.back().fd_client;
+                if (epoll_ctl(epollfd, EPOLL_CTL_ADD, clients.back().fd_client, &ev) == -1) {
+                    std::cerr << "epoll_ctl for client failed: " << strerror(errno) << std::endl;
+                    close(clients.back().fd_client);
+                    clients.pop_back();
                     continue;
                 }
-                else
-                    std::cout << "New client connected" << std::endl;
-                
-                clients.back().fd_client = new_fd;
                 nbClients++;
+                setnonblock(clients.back().fd_client);
+                std::cout << "New client connected" << std::endl;
             }
-        }
-        for (size_t i = 0; i < clients.size(); ++i)
-        {
-            if (clients[i].hedersend == false)
-                reader(clients[i]);
-            clients[i].vIndex = i;
-            if (std::string(clients[i].buffer).find("GET") != std::string::npos)
-                clients[i].method = GET;
-            else if (std::string(clients[i].buffer).find("POST") != std::string::npos)
-                clients[i].method = POST;
-            else if (std::string(clients[i].buffer).find("DELETE") != std::string::npos)
-                clients[i].method = DELETE;
+            // std::cout << "events size " << events.size() << std::endl;
 
-            std::cout << clients[i].buffer << std::endl;
-            std::cout << "cilent  "<< i << std::endl;
-            handler(clients[i]);
-            sender(clients[i] , clients);
+            for (size_t i = 0; i < clients.size(); i++)
+            {
+            std::cout << "clients size " << clients.size() << std::endl;
+                if (events[i].data.fd == clients[i].fd_client)
+                {
+                    if (events[i].events & EPOLLIN)
+                    {
+                        std::cout << "client start read  " << std::endl;
+                        reader(clients[i]);
+                        if (handler(clients[i]) == 0)
+                        {
+                            ev.events = EPOLLOUT;
+                            ev.data.fd = clients[i].fd_client;
+                            epoll_ctl(epollfd, EPOLL_CTL_MOD, clients[i].fd_client, &ev);
+                        }
+                        }
+                    else if (events[i].events & EPOLLOUT)
+                    {
+                        std::cout << "client start write " << std::endl;
+                        sender(clients[i], clients, epollfd, ev);
+                    }
+                }
+            }
+            // else 
+            // {
+            //     // Handle client read/write here
+            // }
         }
-            
-        
-
     }
+    // Clean up
+    close(epollfd);
 }
 
 server::server()

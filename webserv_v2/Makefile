@@ -2,7 +2,7 @@ NAME = webserv
 SRCS = main.cpp Methodes.cpp responce.cpp
 OBJS = $(SRCS:.cpp=.o)
 GXX = c++
-FLAGS = -Wall -Wextra -Werror -std=c++98
+FLAGS = -Wall -Wextra -Werror -std=c++98 -g -fsanitize=address
 
 all: $(NAME)
 

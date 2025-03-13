@@ -52,11 +52,11 @@ class client {
             fileSizeRead(0), method(GET), fullfileSize(0), hedersend(false),
             bodyFond(false), finish(false), vIndex(0) {}
         ~client() {
-            if (file != NULL) {
-                if (file->is_open())
-                    file->close();
-                delete file;
-            }
+            // if (file != NULL) {
+            //     if (file->is_open())
+            //         file->close();
+            //     delete file;
+            // }
         }
                 
         
