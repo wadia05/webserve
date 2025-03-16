@@ -34,11 +34,32 @@ void server::setupServer()
 }
 
 void cleanup_client(client &Client, std::vector<client> &clients) {
-    std::cout << "\033[1;33mClient disconnected. Total clients: " << nbClients - 1 << "\033[0m" << std::endl;  // Yellow color
+    std::cout << "\033[1;33mClient disconnected. Total clients: " << nbClients - 1 << "\033[0m" << std::endl;
     nbClients--;
-    close(Client.fd_file);
-    close(Client.fd_client);
-    clients.erase(clients.begin() + Client.vIndex);
+    
+    // Make sure to close the file if it's open
+    if (Client.file && Client.file->is_open()) {
+        Client.file->close();
+        delete Client.file;
+        // Client.file = nullptr;
+    }
+    
+    // Close the file descriptor if it's valid
+    if (Client.fd_file > 0) {
+        close(Client.fd_file);
+        Client.fd_file = -1;
+    }
+    
+    // Close the client socket if it's valid
+    if (Client.fd_client > 0) {
+        close(Client.fd_client);
+        Client.fd_client = -1;
+    }
+    
+    // Remove from clients vector if index is valid
+    if (Client.vIndex >= 0 && Client.vIndex < static_cast<int>(clients.size())) {
+        clients.erase(clients.begin() + Client.vIndex);
+    }
 }
 
 int PrepareDataToSend(client &Client, int epollfd, struct epoll_event &ev) {
@@ -346,7 +367,7 @@ server::server()
     this->port = 8080;
     this->max_upload_size = 25000000; // approximately 25 MB
     this->serverName = "MoleServer";
-    this->serverIp = "192.168.3.31";
+    this->serverIp = "10.12.179.82";
     this->root = "../webserv_v2/root";
     this->index_page = "../webserv_v2/root/index.html";
     this->error_page = "../webserv_v2/root/moleServer/404.html";
