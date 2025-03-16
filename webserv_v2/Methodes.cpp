@@ -1,15 +1,16 @@
 #include "webserve.hpp"
 
-void server::extractGET(client &client, char *buffer)
+void server::extractGET(client &client)
 {
     
-    std::string str = buffer;
+    std::string str = client.buffer;
     std::string path;
     size_t pos = str.find("GET ");
     size_t pos1 = str.find(" HTTP/1.1");
     if (pos != std::string::npos && pos1 != std::string::npos)
     {
         path = str.substr(pos + 4, pos1 - pos - 4);
+        std::cout << "Path: " << path << std::endl;
         if (path == "/")
             path = index();
         else
@@ -26,7 +27,7 @@ void server::extractGET(client &client, char *buffer)
             return;
         }
         
-        client.bodyFond = true;
+        // client.bodyFond = true;
     }
     else
     {
@@ -35,29 +36,24 @@ void server::extractGET(client &client, char *buffer)
     }
 
 }
-int server::GET_hander(client &client, char *buffer)
+int server::GET_hander(client &client)
 {
-    if(client.bodyFond == false)
+
+        extractGET(client);
+        return 0;
+}
+
+int server::POST_handler(client &client)
+{
+    client.G_P_Responce.append(client.buffer);
+    if (client.bodyFond == true)
     {
-        extractGET(client, buffer);
-        
-        // Calculate total file size for Content-Length header
-        if(client.file && client.file->is_open())
-        {
-            client.file->seekg(0, std::ios::end);
-            client.fullfileSize = client.file->tellg();
-            client.file->seekg(0, std::ios::beg);
-            std::cout << "File size calculated: " << client.fullfileSize << " bytes" << std::endl;
-        }
+        std::cout << client.G_P_Responce << std::endl;
+        std::cout << "post request is complete" << std::endl;
         return 0;
     }
     return 1;
 }
-
-// void POST_handler(client &client, char *buffer)
-// {
-
-// }
 
 // void DELETE_handler(client &client, char *buffer)
 // {

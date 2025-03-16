@@ -27,14 +27,16 @@
 enum  Method {
     GET,
     POST,
-    DELETE
+    DELETE,
+    NOTDETECTED
 };
 
 class client {
     public :
         int fd_client;// in
         int fd_file; // out 
-        std::ifstream* file; 
+        std::ifstream* file;
+        std::string G_P_Responce; // this variable store the get responce or post requist
         sockaddr_in client_address;
         socklen_t client_len; 
         size_t fileSizeRead;
@@ -49,7 +51,7 @@ class client {
 
         // Add constructor
         client() : fd_client(0), fd_file(0), file(NULL), client_len(sizeof(client_address)),
-            fileSizeRead(0), method(GET), fullfileSize(0), hedersend(false),
+            fileSizeRead(0), method(NOTDETECTED), fullfileSize(0), hedersend(false),
             bodyFond(false), finish(false), vIndex(0) {}
         ~client() {
             // if (file != NULL) {
@@ -92,9 +94,9 @@ class server {
         void run_server();
 
         // void DELETE_handler(client &client, char *buffer);
-        // void POST_handler(client &client, char *buffer);
-        int GET_hander(client &client, char *buffer);
-        void extractGET(client &client, char *buffer);   
+        int POST_handler(client &client);
+        int GET_hander(client &client);
+        void extractGET(client &client);   
         // int sender(client &Client, std::vector<client> &clients);
         int handler(client &client);
 };

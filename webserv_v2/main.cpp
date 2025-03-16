@@ -34,20 +34,20 @@ void server::setupServer()
 }
 
 void cleanup_client(client &Client, std::vector<client> &clients) {
-    std::cout << "Client disconnected. Total clients: " << nbClients - 1 << std::endl;
+    std::cout << "\033[1;33mClient disconnected. Total clients: " << nbClients - 1 << "\033[0m" << std::endl;  // Yellow color
     nbClients--;
     close(Client.fd_file);
+    close(Client.fd_client);
     clients.erase(clients.begin() + Client.vIndex);
 }
 
-int sender(client &Client, std::vector<client> &clients, int epollfd, struct epoll_event &ev) {
+int PrepareDataToSend(client &Client, int epollfd, struct epoll_event &ev) {
     if (Client.method == GET) {
         // If file couldn't be opened, send error response
         if (!Client.file || !Client.file->is_open()) {
-            std::string errorResponse = prepareErrorResponse(404);
-            send(Client.fd_client, errorResponse.c_str(), errorResponse.length(), 0);
+            Client.G_P_Responce = prepareErrorResponse(404);
+            epoll_ctl(epollfd, EPOLL_CTL_DEL, Client.fd_client, &ev);
             Client.finish = true;
-            cleanup_client(Client, clients);
             return 0;
         }
         
@@ -56,16 +56,15 @@ int sender(client &Client, std::vector<client> &clients, int epollfd, struct epo
             Client.file->seekg(0, std::ios::end);
             Client.fullfileSize = Client.file->tellg();
             Client.file->seekg(0, std::ios::beg);
-            std::cout << "File size: " << Client.fullfileSize << " bytes" << std::endl;
+            std::cout << "\033[1;36mFile size: " << Client.fullfileSize << " bytes\033[0m" << std::endl;
         }
         
         // Send headers first if not sent yet
         if (!Client.hedersend) {
-            std::string headers = prepareResponseHeaders(Client);
-            std::cout << headers << std::endl;
-            send(Client.fd_client, headers.c_str(), headers.length(), 0);
+            Client.G_P_Responce = prepareResponseHeaders(Client);
             Client.hedersend = true;
-            std::cout << "Headers sent" << std::endl;
+            std::cout << "\033[1;32mHeaders prepared\033[0m" << std::endl;
+            return 0; // Send headers in the first call to sender
         }
         
         // Send a chunk of the file body
@@ -75,27 +74,33 @@ int sender(client &Client, std::vector<client> &clients, int epollfd, struct epo
         Client.fileSizeRead += bytesRead;
         
         if (bytesRead > 0) {
-            // Send the data chunk without headers
-            int bytesSent = send(Client.fd_client, Client.buffer, bytesRead, 0);
-            if (bytesSent < 0) {
-                std::cerr << "Error sending data: " << strerror(errno) << std::endl;
-                Client.finish = true;
-                cleanup_client(Client, clients);
-            } else {
-                std::cout << "Sent " << bytesSent << " bytes of data" << std::endl;
-            }
+            // Create a proper binary string from the buffer data
+            Client.G_P_Responce = std::string(Client.buffer, bytesRead);
             return 0; // Continue with next iteration
         }
         else if (Client.fileSizeRead == Client.fullfileSize) {
-            std::cout << "\033[1;31mFile sent successfully\033[0m" << std::endl;
-            // End of file reached
-            std::cout << "End of file reached" << std::endl;
+            std::cout << "\033[1;31mFile reading complete\033[0m" << std::endl;
+            Client.G_P_Responce = ""; // No more data to send
             epoll_ctl(epollfd, EPOLL_CTL_DEL, Client.fd_client, &ev);
             Client.finish = true;
-            cleanup_client(Client, clients);
             return 0;
         }
- 
+    }
+    else if (Client.method == POST)
+    {
+        // std::cout << Client. << std::endl;
+        // std::cout << "post request is complete" << std::endl;
+        Client.G_P_Responce = "HTTP/1.1 200 OK\r\n"
+                             "Content-Type: text/html\r\n"
+                             "Content-Length: 200\r\n"
+                             "\r\n"
+                             "<html><body>"
+                             "<h1>Upload Successful!</h1>"
+                             "<p>Your file was successfully uploaded to the server.</p>"
+                             "<p><a href='/'>Return to homepage</a></p>"
+                             "</body></html>";
+        Client.hedersend = true;
+        return 0;
     }
     return 1;
 }
@@ -104,18 +109,30 @@ int sender(client &Client, std::vector<client> &clients, int epollfd, struct epo
 
 int server::handler(client &client)
 {
+    if (client.method == NOTDETECTED)
+    {
+        std::string buffer_str(client.buffer);
+        if(buffer_str.find("GET") != std::string::npos)
+            client.method = GET;
+        else if(buffer_str.find("POST") != std::string::npos)
+            client.method = POST;
+        else if(buffer_str.find("DELETE") != std::string::npos)
+            client.method = DELETE;
+            
+    }
     if (client.method == GET)
     {
         std::cout << "\033[1;32mGET request detected\033[0m\n";
-        if (GET_hander(client, client.buffer) == 0)
+        if (GET_hander(client) == 0)
             return 0;
         return 1;
     }
     else if (client.method == POST)
     {
         std::cout << "\033[1;32mPOST request detected\033[0m\n";
-        client.finish = true;
-        return 0;
+        if (POST_handler(client) == 0)
+            return 0;
+        return 1;
     }
     else if (client.method == DELETE)
     {
@@ -129,22 +146,48 @@ int server::handler(client &client)
 int reader(client &client)
 {
     int received = recv(client.fd_client, client.buffer, BUFFER_SIZE, 0);
-    if (received == 0)
-    {
-        std::cout << "Client disconnected" << std::endl;
+    // std::cout << client.buffer << std::endl;
+    if (received > 0 ) {
+        if (received < BUFFER_SIZE)
+            client.bodyFond = true;
+        // Data received successfully
+        client.buffer[received] = '\0'; // Ensure null-termination for string operations
+        std::cout << "\033[1;32mReceived " << received << " bytes\033[0m" << std::endl;
+        return received;
+    } else if (received == 0) {
+        // Client closed connection
+        client.bodyFond = true;
+        std::cout << "\033[1;33mClient disconnected\033[0m" << std::endl;
+        return 0;
+    } else {
+        // Error occurred
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            // Non-blocking socket and no data available
+            return 1; // Try again later
+        } else {
+            std::cerr << "\033[1;31mError receiving data: " << strerror(errno) << "\033[0m" << std::endl;
+            return -1;
+        }
+    }
+}
+int sender(client &Client, std::vector<client> &clients) {
+    if (Client.finish == true) {
+        cleanup_client(Client, clients);
         return 0;
     }
-    else            
-    {
-        std::cerr << "Error receiving data: " << strerror(errno) << std::endl;
-        return -1;
-    }
-    // client.finish = true;
-    return 1;
     
-    // client.fileSizeRead += received;
+    int sent = send(Client.fd_client, Client.G_P_Responce.c_str(), Client.G_P_Responce.length(), 0);
+    
+    if (sent < 0) {
+        std::cerr << "\033[1;31mError sending data: " << strerror(errno) << "\033[0m" << std::endl;
+        Client.finish = true;
+        return 0;
+    }
+    
+    // Clear the response after sending to free memory
+    Client.G_P_Responce.clear();
+    return 1;
 }
-
 void setnonblock(int fd)
 {
     int flags;
@@ -190,9 +233,9 @@ void server::run_server()
             events.resize(events.size() * 2);
         }
         
-        for (int i = 0; i < rfds; i++)
+        for (int j = 0; j < rfds; j++)
         {
-            if (events[i].data.fd == this->fd_server)
+            if (events[j].data.fd == this->fd_server)
             {
                 struct sockaddr_in client_addr;
                 socklen_t client_len = sizeof(client_addr);
@@ -218,37 +261,80 @@ void server::run_server()
                 }
                 nbClients++;
                 setnonblock(clients.back().fd_client);
-                std::cout << "New client connected" << std::endl;
+                std::cout << "\033[1;32mNew client connected\033[0m" << std::endl;  // Green color
+                } else {
+        // Find which client matches this event
+                bool clientFound = false;
+                for (size_t i = 0; i < clients.size(); i++) {
+                    if (events[j].data.fd == clients[i].fd_client) {
+                        clientFound = true;
+                        // Store the current index for use in cleanup
+                        clients[i].vIndex = i;
+                        
+                        if (events[j].events & EPOLLIN) {
+                            std::cout << "\033[1;34mClient " << clients[i].fd_client << " starting read\033[0m" << std::endl;
+                            int readResult = reader(clients[i]);
+                            if (readResult >= 0 && handler(clients[i]) == 0) {
+                                std::cout << "handler is complete" << std::endl;
+                                ev.events = EPOLLOUT;
+                                ev.data.fd = clients[i].fd_client;
+                                epoll_ctl(epollfd, EPOLL_CTL_MOD, clients[i].fd_client, &ev);
+                            }
+                        } else if (events[j].events & EPOLLOUT) {
+                            // std::cout << clients[i] .G_P_Responce << std::endl;
+                            std::cout << "\033[1;35mClient " << clients[i].fd_client << " starting write\033[0m" << std::endl;
+                            if (PrepareDataToSend(clients[i], epollfd, ev) == 0) {
+                                std::cout << "\033[1;32mClient " << clients[i].fd_client << " starting send\033[0m" << std::endl;
+                                sender(clients[i], clients);
+                            }
+                        }
+                        break;
             }
+        }
+        
+        if (!clientFound) {
+            // Event for a client that's no longer in our list
+            std::cout << "\033[1;31mEvent for unknown client, removing from epoll\033[0m" << std::endl;
+            epoll_ctl(epollfd, EPOLL_CTL_DEL, events[j].data.fd, &ev);
+
+        }
             // std::cout << "events size " << events.size() << std::endl;
 
-            for (size_t i = 0; i < clients.size(); i++)
-            {
-            std::cout << "clients size " << clients.size() << std::endl;
-                if (events[i].data.fd == clients[i].fd_client)
-                {
-                    if (events[i].events & EPOLLIN)
-                    {
-                        std::cout << "client start read  " << std::endl;
-                        reader(clients[i]);
-                        if (handler(clients[i]) == 0)
-                        {
-                            ev.events = EPOLLOUT;
-                            ev.data.fd = clients[i].fd_client;
-                            epoll_ctl(epollfd, EPOLL_CTL_MOD, clients[i].fd_client, &ev);
-                        }
-                        }
-                    else if (events[i].events & EPOLLOUT)
-                    {
-                        std::cout << "client start write " << std::endl;
-                        sender(clients[i], clients, epollfd, ev);
-                    }
-                }
-            }
+            // for (size_t i = 0; i < clients.size(); i++)
+            // {
+            //     std::cout << "clients size " << clients.size() << std::endl;
+            //     if (events[i].data.fd == clients[i].fd_client)
+            //     {
+            //         if (events[i].events & EPOLLIN)
+            //         {
+            //             std::cout << "\033[1;34mClient start read\033[0m" << std::endl;  // Blue color
+            //             reader(clients[i]);
+            //             if (handler(clients[i]) == 0)
+            //             {
+            //                 ev.events = EPOLLOUT;
+            //                 ev.data.fd = clients[i].fd_client;
+            //                 epoll_ctl(epollfd, EPOLL_CTL_MOD, clients[i].fd_client, &ev);
+            //             }
+            //         }
+            //         else if (events[i].events & EPOLLOUT)
+            //         {
+            //             std::cout << "\033[1;35mClient start write\033[0m" << std::endl;  // Magenta color
+            //             if (PrepareDataToSend(clients[i], epollfd, ev) == 0)
+            //             {
+            //                 std::cout << "\033[1;32mClient start send\033[0m" << std::endl;  // Green color
+            //                 if (sender(clients[i], clients) == 0)
+            //                 {
+            //                     std::cout << "\033[1;33mClient send complete\033[0m" << std::endl;  // Yellow color
+            //                 }
+            //             }
+            //         }
+            //     }
+            // }
             // else 
             // {
             //     // Handle client read/write here
             // }
+        }
         }
     }
     // Clean up
