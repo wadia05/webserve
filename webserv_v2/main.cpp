@@ -300,9 +300,9 @@ void server::run_server()
                                 ev.events = EPOLLOUT;
                                 ev.data.fd = clients[i].fd_client;
                                 epoll_ctl(epollfd, EPOLL_CTL_MOD, clients[i].fd_client, &ev);
+                                // std::cout << clients[i] .G_P_Responce << std::endl;
                             }
                         } else if (events[j].events & EPOLLOUT) {
-                            // std::cout << clients[i] .G_P_Responce << std::endl;
                             std::cout << "\033[1;35mClient " << clients[i].fd_client << " starting write\033[0m" << std::endl;
                             if (PrepareDataToSend(clients[i], epollfd, ev) == 0) {
                                 std::cout << "\033[1;32mClient " << clients[i].fd_client << " starting send\033[0m" << std::endl;
