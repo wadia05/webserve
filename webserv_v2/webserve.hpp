@@ -30,7 +30,14 @@ enum  Method {
     DELETE,
     NOTDETECTED
 };
-
+enum  PostType {
+    MULTI,
+    CHANKED,
+    SIMPLE,
+    NON
+};
+int printer(std::vector<std::string> parts);
+std::vector<std::string> split(const std::string& str, const std::string& delimiter) ;
 class client {
     public :
         int fd_client;// in

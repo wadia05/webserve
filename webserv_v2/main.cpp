@@ -198,7 +198,12 @@ int sender(client &Client, std::vector<client> &clients) {
     }
     
     int sent = send(Client.fd_client, Client.G_P_Responce.c_str(), Client.G_P_Responce.length(), 0);
-    
+    if (sent == 0)
+    {
+        std::cerr << "\033[1;33mClient disconnected "<< Client.fd_client << "\033[0m" << std::endl;
+        Client.finish = true;
+        return 0;
+    }
     if (sent < 0) {
         std::cerr << "\033[1;31mError sending data: " << strerror(errno) << "\033[0m" << std::endl;
         Client.finish = true;
