@@ -281,7 +281,6 @@ void server::run_server()
                 } else {
         // Find which client matches this event
                 bool clientFound = false;
-                "tet"
                 for (size_t i = 0; i < clients.size(); i++) {
                     if (events[j].data.fd == clients[i].fd_client) {
                         clientFound = true;

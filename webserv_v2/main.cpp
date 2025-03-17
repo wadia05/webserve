@@ -132,7 +132,7 @@ int server::handler(client &client)
         client.filePath = this->error_page;
         return 1;
     }
-    request.print_all();
+    // request.print_all();
     if (client.method == NOTDETECTED)
     {
         std::string buffer_str(client.G_P_Responce);
