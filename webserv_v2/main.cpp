@@ -120,9 +120,22 @@ int PrepareDataToSend(client &Client, int epollfd, struct epoll_event &ev) {
 
 int server::handler(client &client)
 {
+    // if (client.bodyFond == false)
+    // {
+    //     client.G_P_Responce.append(client.buffer);
+    //     return 1;
+    // }
+    HTTPRequest request;
+    if (!request.parse_request(client.G_P_Responce))
+    {
+        std::cerr << "Failed to parse request" << std::endl;
+        client.filePath = this->error_page;
+        return 1;
+    }
+    request.print_all();
     if (client.method == NOTDETECTED)
     {
-        std::string buffer_str(client.buffer);
+        std::string buffer_str(client.G_P_Responce);
         if(buffer_str.find("GET") != std::string::npos)
             client.method = GET;
         else if(buffer_str.find("POST") != std::string::npos)
@@ -159,10 +172,12 @@ int reader(client &client)
     int received = recv(client.fd_client, client.buffer, BUFFER_SIZE, 0);
     // std::cout << client.buffer << std::endl;
     if (received > 0 ) {
+       
+        client.buffer[received] = '\0'; // Ensure null-termination for string operations
+        client.G_P_Responce.append(client.buffer);
         if (received < BUFFER_SIZE)
             client.bodyFond = true;
         // Data received successfully
-        client.buffer[received] = '\0'; // Ensure null-termination for string operations
         std::cout << "\033[1;32mReceived " << received << " bytes\033[0m" << std::endl;
         return received;
     } else if (received == 0) {
@@ -290,7 +305,8 @@ void server::run_server()
                         if (events[j].events & EPOLLIN) {
                             std::cout << "\033[1;34mClient " << clients[i].fd_client << " starting read\033[0m" << std::endl;
                             int readResult = reader(clients[i]);
-                            if (readResult >= 0 && handler(clients[i]) == 0) {
+                            if (readResult >= 0 && clients[i].bodyFond == true) {
+                                handler(clients[i]);
                                 std::cout << "handler is complete" << std::endl;
                                 ev.events = EPOLLOUT;
                                 ev.data.fd = clients[i].fd_client;

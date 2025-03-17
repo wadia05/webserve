@@ -45,7 +45,8 @@ int server::GET_hander(client &client)
 
 int server::POST_handler(client &client)
 {
-    client.G_P_Responce.append(client.buffer);
+   
+    // client.G_P_Responce.append(client.buffer);
     if (client.bodyFond == true)
     {
         std::cout << client.G_P_Responce << std::endl;
