@@ -1,24 +1,38 @@
-#ifndef WEBSRVE_HPP
-#define WEBSRVE_HPP
+#pragma once
 
+#define RESET "\033[0m"
+#define RED "\033[31m"
+#define GREEN "\033[32m"
+#define BLUE "\033[34m"
+#define YELLOW "\033[33m"
+#define CYAN "\033[36m"
+#define MAGENTA "\033[35m"
+#define BOLD "\033[1m"
 
 #include <iostream>
-#include <string>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <sys/epoll.h>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <unistd.h>
-
-#include <cstring>  // for strerror, memset
-#include <cerrno>   // for errno
-#include <unistd.h> // for close, read
-#include <fcntl.h>  // for open
+#include <fstream>
 #include <vector>
-#include <sstream> 
-#include <fstream>  // for std::ifstream
+#include <algorithm>
+#include <sstream>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <map>
+#include <set>
+#include <cstring>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <sys/epoll.h>
+#include "./configFile/Tokenizer.hpp"
+#include "./configFile/Config.hpp"
+#include "./req/HTTPRequest.hpp"
+
+class Config;
+class HTTPRequest;
 
 
 #define BUFFER_SIZE 1024
@@ -88,7 +102,7 @@ class server {
 
 
     public :
-        server();
+        server(const Config &config);
         ~server();
         std::string getRoot(){return root;};
         std::string index(){return index_page;};
@@ -107,8 +121,3 @@ class server {
         // int sender(client &Client, std::vector<client> &clients);
         int handler(client &client);
 };
-
-
-
-
-#endif

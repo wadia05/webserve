@@ -1,15 +1,5 @@
-#include <fstream>
-#include <sstream>
-#include <vector>
-#include <cstring>
-#include <iostream>
-#include <stdexcept>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include "webserve.hpp"
 
+#include "webserv.hpp"
 static int nbClients = 0;
 
 void server::setupServer()
@@ -23,7 +13,7 @@ void server::setupServer()
         throw std::runtime_error("Setsockopt failed");
     
     this->server_addr.sin_family = AF_INET;
-    this->server_addr.sin_addr.s_addr = INADDR_ANY;  
+    this->server_addr.sin_addr.s_addr = inet_addr(this->serverIp.c_str());  
     this->server_addr.sin_port = htons(this->port);
 
     if(bind(this->fd_server, (sockaddr*)&this->server_addr, sizeof(this->server_addr)) < 0)
@@ -367,15 +357,18 @@ void server::run_server()
     close(epollfd);
 }
 
-server::server()
+
+server::server(const Config &config)
 {
-    this->port = 8080;
-    this->max_upload_size = 25000000; // approximately 25 MB
-    this->serverName = "MoleServer";
-    this->serverIp = "10.12.179.82";
-    this->root = "../webserv_v2/root";
-    this->index_page = "../webserv_v2/root/index.html";
-    this->error_page = "../webserv_v2/root/moleServer/404.html";
+
+    std::vector<std::map<std::string, std::string> > listenn = config.getListen();
+    this->serverIp = listenn[0].begin()->first;
+    this->port = std::atoi(listenn[0].begin()->second.c_str());
+    this->max_upload_size = config.getClientMaxBodySize()[0];
+    this->serverName = config.getServerName()[0];
+    this->root = "../webserv_v2/www";
+    this->index_page = "../webserv_v2/www/index.html";
+    this->error_page = "../webserv_v2/www/error_pages/404.html";
     setupServer();
 }
 
@@ -383,12 +376,40 @@ server::~server()
 {
     close(this->fd_server);
 }
-
-int main ()
+void initMimeTypes(const std::string &filePath, std::map<std::string, std::string> &mimeTypes)
 {
+    std::ifstream file(filePath.c_str());
+    if (!file.is_open())
+    {
+        std::cerr << "Error opening the MIME types file" << std::endl;
+        exit(1);
+    }
+    std::string line;
+    while (std::getline(file, line))
+    {
+        std::istringstream linestream(line);
+        std::string extension;
+        std::string mimeType;
+        std::getline(linestream, extension, ',');
+        std::getline(linestream, mimeType);
+        mimeTypes[extension] = mimeType;
+    }
+    file.close();
+}
+int main (int ac, char **av)
+{
+    if (ac != 2)
+        return (std::cerr << "Invalid number of arguments" << std::endl, 1);
+    std::map<std::string, std::string> mimeTypes;
+    initMimeTypes("www/mimeTypes.csv", mimeTypes);
+    std::ifstream file(av[1]);
+    Config config;
+    config.parser(file);
+    std::vector<Config> configs = config.getConfigs();
     try
     {
-        server s1;
+        server s1(configs[0]);
+
         s1.run_server();
     }
     catch(const std::exception& e)

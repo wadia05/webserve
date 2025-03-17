@@ -1,23 +1,30 @@
+CC = c++
+CPPFLAGS = -Wall -Wextra -Werror -std=c++98
+RM = rm -f
+
+# Headers
+Header = webserv.hpp configFile/Tokenizer.hpp configFile/Config.hpp req/HTTPRequest.hpp
+
+# Source files
+SRCS = main.cpp Methodes.cpp responce.cpp \
+		configFile/Tokenizer.cpp configFile/Config.cpp configFile/get.cpp configFile/set.cpp configFile/error.cpp \
+		req/HTTPRequest.cpp req/parseBody.cpp req/parseHeaders.cpp req/parseRequestLine.cpp req/get.cpp
+
+# Output executable
 NAME = webserv
-SRCS = main.cpp Methodes.cpp responce.cpp
 OBJS = $(SRCS:.cpp=.o)
-GXX = c++
-FLAGS = -Wall -Wextra -Werror -std=c++98 -g -fsanitize=address
 
 all: $(NAME)
 
-$(NAME): $(OBJS)
-	$(GXX) $(FLAGS) -o $@ $^
-
-%.o: %.cpp
-	$(GXX) $(FLAGS) -c $< -o $@
+$(NAME): $(OBJS) $(Header)
+	$(CC) $(CPPFLAGS) $(OBJS) -o $(NAME)
 
 clean:
-	rm -f $(OBJS)
+	$(RM) $(OBJS)
 
 fclean: clean
-	rm -f $(NAME)
+	$(RM) $(NAME)
 
 re: fclean all
 
-# .PHONY: all clean fclean re
+.PHONY: all clean fclean re
