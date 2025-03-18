@@ -31,10 +31,21 @@ std::string prepareResponseHeaders(client &Client) {
         contentType = "application/pdf";
     } else if (extension == "txt") {
         contentType = "text/plain";
+    } else if (extension == "mp3") {
+        contentType = "audio/mpeg";
+    } else if (extension == "wav") {
+        contentType = "audio/wav";
+    } else if (extension == "ogg") {
+        contentType = "audio/ogg";
+    } else if (extension == "mp4") {
+        contentType = "video/mp4";
+    } else if (extension == "webm") {
+        contentType = "video/webm";
+    } else if (extension == "avi") {
+        contentType = "video/x-msvideo";
     } else {
         contentType = "application/octet-stream";
     }
-    
     // Build HTTP response header
     std::stringstream ss;
     ss << "HTTP/1.1 200 OK\r\n";

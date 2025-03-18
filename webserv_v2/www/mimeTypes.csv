@@ -10,3 +10,4 @@ extension,mime_type
 .json,application/json
 .xml,application/xml
 .pdf,application/pdf
+.mp3,audio/mpeg

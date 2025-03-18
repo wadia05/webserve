@@ -110,7 +110,7 @@ int PrepareDataToSend(client &Client, int epollfd, struct epoll_event &ev) {
                              "<p>Your file was successfully uploaded to the server.</p>"
                              "<p><a href='/'>Return to homepage</a></p>"
                              "</body></html>";
-        Client.hedersend = true;
+        Client.finish = true;
         return 0;
     }
     return 1;
@@ -132,29 +132,29 @@ int server::handler(client &client)
         client.filePath = this->error_page;
         return 1;
     }
-    // request.print_all();
+    request.print_all();
     if (client.method == NOTDETECTED)
     {
         std::string buffer_str(client.G_P_Responce);
-        if(buffer_str.find("GET") != std::string::npos)
+        if(request.getMethod() == "GET")
             client.method = GET;
-        else if(buffer_str.find("POST") != std::string::npos)
+        else if(request.getMethod() == "POST")
             client.method = POST;
-        else if(buffer_str.find("DELETE") != std::string::npos)
+        else if(request.getMethod() == "DELETE")
             client.method = DELETE;
             
     }
     if (client.method == GET)
     {
         std::cout << "\033[1;32mGET request detected\033[0m\n";
-        if (GET_hander(client) == 0)
+        if (GET_hander(client, request) == 0)
             return 0;
         return 1;
     }
     else if (client.method == POST)
     {
         std::cout << "\033[1;32mPOST request detected\033[0m\n";
-        if (POST_handler(client) == 0)
+        if (POST_handler(client, request) == 0)
             return 0;
         return 1;
     }
@@ -196,27 +196,24 @@ int reader(client &client)
         }
     }
 }
-int sender(client &Client, std::vector<client> &clients) {
-    if (Client.finish == true) {
-        cleanup_client(Client, clients);
-        return 0;
-    }
+int sender(client &Client, std::vector<client> &clients, int epollfd, struct epoll_event &ev) {
     
     int sent = send(Client.fd_client, Client.G_P_Responce.c_str(), Client.G_P_Responce.length(), 0);
-    if (sent == 0)
-    {
-        std::cerr << "\033[1;33mClient disconnected "<< Client.fd_client << "\033[0m" << std::endl;
-        Client.finish = true;
-        return 0;
-    }
     if (sent < 0) {
         std::cerr << "\033[1;31mError sending data: " << strerror(errno) << "\033[0m" << std::endl;
         Client.finish = true;
         return 0;
     }
+    if (Client.finish == true) {
+        Client.G_P_Responce.clear();
+        epoll_ctl(epollfd, EPOLL_CTL_DEL, Client.fd_client, &ev);
+        cleanup_client(Client, clients);
+        return 0;
+    }
+
+    Client.G_P_Responce.clear();
     
     // Clear the response after sending to free memory
-    Client.G_P_Responce.clear();
     return 1;
 }
 void setnonblock(int fd)
@@ -317,7 +314,7 @@ void server::run_server()
                             std::cout << "\033[1;35mClient " << clients[i].fd_client << " starting write\033[0m" << std::endl;
                             if (PrepareDataToSend(clients[i], epollfd, ev) == 0) {
                                 std::cout << "\033[1;32mClient " << clients[i].fd_client << " starting send\033[0m" << std::endl;
-                                sender(clients[i], clients);
+                                  sender(clients[i], clients, epollfd, ev);
                             }
                         }
                         break;

@@ -5,8 +5,13 @@ wait
 \r\n\r\n
 
 curl -X POST 10.12.179.82:8080/test37.txt --data "hello world"
+curl -X POST 192.168.3.31:8080/test37.txt --data "hello world"
 
 
 curl -X POST 10.12.179.82:8080/ \
+  -H "Transfer-Encoding: chunked" \
+  --data-binary @text.txt
+
+curl -X POST 192.168.3.31:8080/ \
   -H "Transfer-Encoding: chunked" \
   --data-binary @text.txt

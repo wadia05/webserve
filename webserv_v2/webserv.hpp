@@ -115,9 +115,9 @@ class server {
         void run_server();
 
         // void DELETE_handler(client &client, char *buffer);
-        int POST_handler(client &client);
-        int GET_hander(client &client);
-        void extractGET(client &client);   
+        int POST_handler(client &client, HTTPRequest &request);
+        int GET_hander(client &client, HTTPRequest &request);
+            // void extractGET(client &client);   
         // int sender(client &Client, std::vector<client> &clients);
         int handler(client &client);
 };
