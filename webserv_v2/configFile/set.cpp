@@ -1,38 +1,35 @@
 #include "Config.hpp"
 
-void Config::setListen(std::vector<t_token> &tokens, int *i)
+void Config::setPort(std::vector<t_token> &tokens, int *i)
 {
     if (tokens.size() != 1)
     {
         print_error("listen", i);
         return;
     }
-    std::string host = "0.0.0.0";
-    std::string port;
     std::string &value = tokens[0].value;
-    size_t pos = value.find(':');
-    if (pos != std::string::npos)
+    if (value.empty() || !isValidPort(value))
     {
-        host = value.substr(0, pos);
-        port = value.substr(pos + 1);
-        if (host.empty() || port.empty() || !isValidIPAddress(host) || !isValidPort(port))
-        {
-            print_error("listen", i);
-            return;
-        }
+        print_error("listen", i);
+        return;
     }
-    else
+    this->port.push_back(value);
+}
+
+void Config::setHost(std::vector<t_token> &tokens, int *i)
+{
+    if (tokens.size() != 1)
     {
-        port = value;
-        if (port.empty() || !isValidPort(port))
-        {
-            print_error("listen", i);
-            return;
-        }
+        print_error("listen", i);
+        return;
     }
-    std::map<std::string, std::string> listeen;
-    listeen[host] = port;
-    this->listen.push_back(listeen);
+    std::string &value = tokens[0].value;
+    if (value.empty() || !isValidIPAddress(value))
+    {
+        print_error("listen", i);
+        return;
+    }
+    this->host.push_back(value);
 }
 
 void Config::setServerName(std::vector<t_token> &tokens, int *i)
@@ -61,9 +58,7 @@ void Config::setErrorPage(std::vector<t_token> &tokens, int *i)
         print_error("error_page", i);
         return;
     }
-    std::map<int, std::string> error_pagee;
-    error_pagee[code] = tokens[1].value;
-    error_page.push_back(error_pagee);
+    this->error_page[code] = tokens[1].value;
 }
 
 void Config::setClientMaxBodySize(std::vector<t_token> &tokens, int *x)
@@ -180,9 +175,7 @@ void Config::Location::setReturn(std::vector<t_token> &tokens, int *i)
         print_error("return", i);
         return;
     }
-    std::map<int, std::string> return__;
-    return__[code] = tokens[1].value;
-    return_.push_back(return__);
+    this->return_[code] = tokens[1].value;
 }
 
 void Config::Location::setRoot(std::vector<t_token> &tokens, int *i)
@@ -262,9 +255,7 @@ void Config::Location::setCgi(std::vector<t_token> &tokens, int *i)
         print_error("cgi", i);
         return;
     }
-    std::map<std::string, std::string> cgii;
-    cgii[extension] = path;
-    cgi.push_back(cgii);
+    this->cgi[extension] = path;
 }
 
 void Config::Location::setPath(std::string path, int *i)

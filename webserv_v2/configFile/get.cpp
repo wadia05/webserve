@@ -55,19 +55,18 @@ bool Config::isValidPath(const std::string &path, bool isDirectory)
     return S_ISREG(path_stat.st_mode);
 }
 
-std::vector<std::map<std::string, std::string> > Config::getListen() const { return listen; }
+std::vector<std::string> Config::getHost() const { return host; }
+std::vector<std::string> Config::getPort() const { return port; }
 std::vector<std::string> Config::getServerName() const { return server_name; }
-
-std::vector<std::map<int, std::string> > Config::getErrorPage() const { return error_page; }
-
+std::map<int, std::string> Config::getErrorPage() const { return error_page; }
 std::vector<long> Config::getClientMaxBodySize() const { return client_max_body_size; }
 std::vector<std::string> Config::Location::getAutoindex() const { return autoindex; }
 std::vector<std::string> Config::Location::getAllowMethods() const { return allow_methods; }
-std::vector<std::map<std::string, std::string> > Config::Location::getCgi() const { return cgi; }
+std::map<std::string, std::string> Config::Location::getCgi() const { return cgi; }
 std::vector<std::string> Config::Location::getRoot() const { return root; }
 std::vector<std::string> Config::Location::getIndex() const { return index; }
 std::vector<std::string> Config::Location::getUploadDir() const { return upload_dir; }
-std::vector<std::map<int, std::string> > Config::Location::getReturn() const { return return_; }
+std::map<int, std::string> Config::Location::getReturn() const { return return_; }
 std::string Config::Location::getPath() const { return path; }
 void Config::addLocation(const Location &location)
 {

@@ -37,7 +37,7 @@ void Tokenizer::processFile()
     std::string line;
     while (std::getline(file, line))
     {
-        if (line == "<|||||||||>")
+        if (line == "# ==================== End Server Block ====================")
         {
             this->lines.push_back(liness);
             liness.clear();

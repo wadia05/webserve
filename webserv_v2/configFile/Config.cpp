@@ -23,8 +23,10 @@ void Config::parser(std::ifstream &file)
                 std::vector<t_token> new_tokens;
                 for (std::vector<t_token>::iterator it2 = it + 1; it2 != tokens.end() && it2->type == VALUE; ++it2)
                     new_tokens.push_back(*it2);
-                if (it->value == "listen")
-                    tempConfig.setListen(new_tokens, &i);
+                if (it->value == "host")
+                    tempConfig.setHost(new_tokens, &i);
+                else if (it->value == "port")
+                    tempConfig.setPort(new_tokens, &i);
                 else if (it->value == "server_name")
                     tempConfig.setServerName(new_tokens, &i);
                 else if (it->value == "error_page")
@@ -137,5 +139,6 @@ void Config::parser(std::ifstream &file)
     {
         std::cerr << "Error: all servers are invalid" << std::endl;
         exit(1);
-    }    
+    }
+    // this->printConfig(this->configs);
 }

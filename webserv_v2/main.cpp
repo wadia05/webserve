@@ -200,9 +200,12 @@ int sender(client &Client, std::vector<client> &clients, int epollfd, struct epo
     
     int sent = send(Client.fd_client, Client.G_P_Responce.c_str(), Client.G_P_Responce.length(), 0);
     if (sent < 0) {
-        std::cerr << "\033[1;31mError sending data: " << strerror(errno) << "\033[0m" << std::endl;
-        Client.finish = true;
-        return 0;
+           std::cerr << "Error sending data: " << strerror(errno) << std::endl;
+        if (errno == ECONNRESET) {
+            std::cerr << "Connection reset by peer" << std::endl;
+            // Handle the connection reset, e.g., close the socket, clean up resources
+            close(Client.fd_client);
+        }
     }
     if (Client.finish == true) {
         Client.G_P_Responce.clear();
@@ -245,7 +248,7 @@ void server::run_server()
     
     while (true)
     {
-        std::cout << "is waiting for events" << std::endl;
+        // std::cout << "is waiting for events" << std::endl;
         int rfds = epoll_wait(epollfd, events.data(), events.size(), 1000);
         
         if (rfds == -1) {
@@ -300,7 +303,7 @@ void server::run_server()
                         clients[i].vIndex = i;
                         
                         if (events[j].events & EPOLLIN) {
-                            std::cout << "\033[1;34mClient " << clients[i].fd_client << " starting read\033[0m" << std::endl;
+                            // std::cout << "\033[1;34mClient " << clients[i].fd_client << " starting read\033[0m" << std::endl;
                             int readResult = reader(clients[i]);
                             if (readResult >= 0 && clients[i].bodyFond == true) {
                                 handler(clients[i]);
@@ -311,9 +314,9 @@ void server::run_server()
                                 // std::cout << clients[i] .G_P_Responce << std::endl;
                             }
                         } else if (events[j].events & EPOLLOUT) {
-                            std::cout << "\033[1;35mClient " << clients[i].fd_client << " starting write\033[0m" << std::endl;
+                            // std::cout << "\033[1;35mClient " << clients[i].fd_client << " starting write\033[0m" << std::endl;
                             if (PrepareDataToSend(clients[i], epollfd, ev) == 0) {
-                                std::cout << "\033[1;32mClient " << clients[i].fd_client << " starting send\033[0m" << std::endl;
+                                // std::cout << "\033[1;32mClient " << clients[i].fd_client << " starting send\033[0m" << std::endl;
                                   sender(clients[i], clients, epollfd, ev);
                             }
                         }
@@ -373,10 +376,8 @@ void server::run_server()
 
 server::server(const Config &config)
 {
-
-    std::vector<std::map<std::string, std::string> > listenn = config.getListen();
-    this->serverIp = listenn[0].begin()->first;
-    this->port = std::atoi(listenn[0].begin()->second.c_str());
+    this->serverIp =  config.getHost()[0];
+    this->port = std::atoi(config.getPort()[0].c_str());
     this->max_upload_size = config.getClientMaxBodySize()[0];
     this->serverName = config.getServerName()[0];
     this->root = "../webserv_v2/www";

@@ -11,8 +11,9 @@ public:
 
 private:
     std::vector<Config> configs;
-    std::vector<std::map<std::string, std::string> > listen;
-    std::vector<std::map<int, std::string> > error_page;
+    std::vector<std::string> port;
+    std::vector<std::string> host;
+    std::map<int, std::string> error_page;
     std::vector<long> client_max_body_size;
     std::vector<std::string> server_name;
     std::vector<Config::Location> locations;
@@ -25,15 +26,16 @@ private:
 
 public:
     Config() {};
-
-    void setListen(std::vector<t_token> &tokens, int *i);
+    void setHost(std::vector<t_token> &tokens, int *i);
+    void setPort(std::vector<t_token> &tokens, int *i);
     void setServerName(std::vector<t_token> &tokens, int *i);
     void setErrorPage(std::vector<t_token> &tokens, int *i);
     void setClientMaxBodySize(std::vector<t_token> &tokens, int *i);
 
+    std::vector<std::string> getPort() const;
+    std::vector<std::string> getHost() const;
     std::vector<std::string> getServerName() const;
-    std::vector<std::map<int, std::string> > getErrorPage() const;
-    std::vector<std::map<std::string, std::string> > getListen() const;
+    std::map<int, std::string> getErrorPage() const;
     std::vector<long> getClientMaxBodySize() const;
 
     std::vector<Config::Location> getLocations() const;
@@ -50,8 +52,8 @@ public:
         std::vector<std::string> autoindex;
         std::vector<std::string> index;
         std::vector<std::string> allow_methods;
-        std::vector<std::map<int, std::string> > return_;
-        std::vector<std::map<std::string, std::string> > cgi;
+        std::map<int, std::string> return_;
+        std::map<std::string, std::string> cgi;
 
     public:
         Location() {};
@@ -70,8 +72,8 @@ public:
         std::vector<std::string> getAutoindex() const;
         std::vector<std::string> getIndex() const;
         std::vector<std::string> getAllowMethods() const;
-        std::vector<std::map<int, std::string> > getReturn() const;
-        std::vector<std::map<std::string, std::string> > getCgi() const;
+        std::map<int, std::string> getReturn() const;
+        std::map<std::string, std::string> getCgi() const;
     };
     void printConfig(std::vector<Config> &configs) const;
 };
